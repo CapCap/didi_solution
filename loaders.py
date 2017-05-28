@@ -2,6 +2,13 @@ import os
 import pandas as pd
 import parse_tracklet as pt
 import numpy as np
+import fnmatch
+
+
+def deep_file_find(root_folder_path, file_pattern='*.*'):
+    return [os.path.join(dirpath, f)
+            for dirpath, dirnames, files in os.walk(root_folder_path)
+            for f in fnmatch.filter(files, file_pattern)]
 
 
 def load_points(folder_path, file_name='points.csv'):
@@ -40,3 +47,6 @@ def get_centroids(tracklets):
             tracklet_centroids.append(centroid)
         centroids.append(tracklet_centroids)
     return centroids
+
+
+print( deep_file_find(os.path.dirname(os.__file__)) )
