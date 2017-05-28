@@ -1,5 +1,5 @@
 import numpy as np
-from .image_utils import array_to_image
+from image_utils import array_to_image
 
 # degree to radians
 D2R = (np.pi / 180)
@@ -24,13 +24,39 @@ Y_MIN = -((V_FOV_DEG[1] / V_RES_DEG) + Y_FUDGE)
 Y_MAX = int(np.ceil(H_AVOVE_AND_BELOW + Y_FUDGE))
 X_MIN = -180.0 / H_RES_DEG
 X_MAX = int(np.ceil(360.0 / H_RES_DEG))
+IMG_DIMENSIONS = [Y_MAX + 1, X_MAX + 1]
 
 
 def distance(x, y, z=0.0):
     return np.sqrt(np.add(np.add(x ** 2, y ** 2), z ** 2))
 
 
-def unwrap_point(x, y, z, d):
+def rotation_matrix(axis, theta):
+    """
+    Return the rotation matrix associated with counterclockwise rotation about
+    the given axis by theta radians.
+    """
+    axis = np.asarray(axis)
+    axis = axis / np.sqrt(np.dot(axis, axis))
+    a = np.cos(theta / 2.0)
+    b, c, d = -axis * np.sin(theta / 2.0)
+    aa, bb, cc, dd = a * a, b * b, c * c, d * d
+    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+    return np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
+                     [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
+                     [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
+
+
+def rotate_around_center(x, y, z, theta):
+    rm = rotation_matrix([0.0, 0.0, 1.0], theta)
+    return np.nan_to_num(np.dot(np.column_stack((x, y, z)), rm.T))
+
+
+def unwrap_point(x, y, z, d, rotation_deg=0.0):
+    theta = rotation_deg * float(D2R)
+    if theta != 0:
+        x, y, z = rotate_around_center(x, y, z, theta).T
+
     # MAP TO CYLINDER
     x_img = np.arctan2(y, x) / H_RES_RAD
     y_img = -(np.arctan2(z, d) / V_RES_RAD)
@@ -44,10 +70,8 @@ def unwrap_point(x, y, z, d):
 
 def point_cloud_to_panorama(points,
                             d_range=(-10.0, 200.0),
-                            im_format='rgb',
+                            rotation_deg=0.0,
                             ):
-    # print("raw points", points.shape)
-
     # map distance relative to origin
     # z is up, x is forward, y is left
     points['map_distance'] = distance(points['x'], points['y'])  # np.sqrt(points['x']**2 + points['y']**2)
@@ -62,16 +86,11 @@ def point_cloud_to_panorama(points,
     d_points = points['map_distance']
     r_points = np.sqrt(points['intensity'])
 
-    x_points, y_points = unwrap_point(points['x'], points['y'], points['z'], d_points)
-
-    # Convert to image array... this hurts a little
-    dimensions = [Y_MAX + 1, X_MAX + 1]
-    if im_format == "rgb":
-        dimensions.append(3)
+    x_points, y_points = unwrap_point(points['x'], points['y'], points['z'], d_points, rotation_deg=rotation_deg)
 
     xy_points = [x_points, y_points]
 
-    img_distance = array_to_image(d_points, xy_points, dimensions)
-    img_intensity = array_to_image(r_points, xy_points, dimensions)
+    img_distance = array_to_image(d_points, xy_points, IMG_DIMENSIONS)
+    img_intensity = array_to_image(r_points, xy_points, IMG_DIMENSIONS)
 
     return img_distance, img_intensity

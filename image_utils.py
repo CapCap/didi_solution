@@ -65,22 +65,18 @@ def scale_image(img, scale_up=2):
     return cv2.resize(img, (int(scale_up * width), int(scale_up * height)), interpolation=cv2.INTER_CUBIC)
 
 
-def draw_centroid(img, centroid, scale=1.0):
-    from .unwrapper import distance, unwrap_point
+def draw_centroid(img, centroid, scale=1.0, rotation_deg=0.0):
+    from centroids import unwrap_centroid
     img = np.copy(img)
-    x, y, z = centroid[:3]
-    d = distance(x, y, z)
-    x, y = unwrap_point(x, y, z, d)
-    # This is totally arbitrary
-    r = (200 / d)
+    x, y, r = unwrap_centroid(centroid, rotation_deg=rotation_deg)
     cv2.circle(img, (int(x * scale), int(y * scale * 1.2)), int(r), (0, 255, 0), 1)
     return img
 
 
 def adjust_gamma(image, gamma=1.0):
     # build a lookup table mapping pixel values [0, 255] to their adjusted gamma values
-    invGamma = 1.0 / gamma
-    table = np.array([((i / 255.0) ** invGamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
+    inv_gamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
 
     # apply gamma correction using the lookup table
     return cv2.LUT(image, table)
