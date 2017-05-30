@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from moviepy.editor import ImageSequenceClip, clips_array
 import math
 
 # distinct colors for drawing multiple tracklets
@@ -71,6 +72,20 @@ def draw_centroid(img, centroid, scale=1.0, rotation_deg=0.0):
     x, y, r = unwrap_centroid(centroid, rotation_deg=rotation_deg)
     cv2.circle(img, (int(x * scale), int(y * scale * 1.2)), int(r), (0, 255, 0), 1)
     return img
+
+
+def save_video(frames, name, fps=13):
+    for rotation_deg in frames['intensity'].keys():
+        intensity_animation = ImageSequenceClip(frames['intensity'][rotation_deg], fps=fps)
+        distance_animation = ImageSequenceClip(frames['distance'][rotation_deg], fps=fps)
+        h, w, d = frames['distance'][rotation_deg][0].shape
+        blank = np.zeros([h / 2, w, d], dtype=np.uint8)
+        blank[:, :] = [255, 255, 255]
+        blank = ImageSequenceClip([blank] * (len(frames['intensity'][rotation_deg])), fps=fps)
+
+        final_clip = clips_array([[intensity_animation], [blank], [distance_animation]])
+        filename = "%s_rot%s.webm" % (name, rotation_deg)
+        final_clip.write_videofile(filename, codec='libvpx')
 
 
 def adjust_gamma(image, gamma=1.0):
