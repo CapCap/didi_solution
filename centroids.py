@@ -8,7 +8,9 @@ def unwrap_centroid(centroid, rotation_deg=0.0):
     x, y = unwrap_point(x, y, z, d, rotation_deg=rotation_deg)
     # This is totally arbitrary
     r = (200 / d)
+    #print("points: %s" % (','.join([str(x), str(y), str(r)])))
     return x, y, r
+
 
 def get_first_centroid_for(timestamp, tracklet_centroids, df_timestamps):
     i = df_timestamps.index(timestamp)

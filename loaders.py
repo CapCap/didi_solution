@@ -15,8 +15,9 @@ def deep_load_folder(root_folder_path, points_filename='points.csv'):
     points_filepaths = deep_points_folder_find(root_folder_path, file_pattern=points_filename)
 
     for points_filepath in points_filepaths:
-        # if '14_f' in points_filepath:
         data_group_name, data_item_name = points_filepath.split("/")[-2:]  # [-3::2]
+        # if data_group_name == "data_1" and data_item_name == "10":
+
         print("Loading folder: '%s'    ('%s', '%s')" % (points_filepath, data_group_name, data_item_name))
         yield data_group_name, data_item_name, handle_data_folder(points_filepath)
         # if data_group not in loaded_files:
@@ -61,31 +62,33 @@ def load_points(folder_path, csv_filename='points.csv'):
 
 def load_tracklets(folder_path, xml_filename='tracklet_labels.xml'):
     xml_filepath = os.path.join(folder_path, xml_filename)
-    print("Loading tracklets from '%s'" % xml_filepath)
-    tracklets = pt.parse_xml(xml_filepath)
-    for i in range(len(tracklets)):
-        tracklet = tracklets[i]
-        h, w, l = tracklet.size
-        print("%s. %s" % ((i + 1), tracklet.object_type))
-        print("    LxWxH:  %s x %s x %s" % (l, w, h))
-        print("    Frame0: %s " % (tracklet.first_frame))
-        print("    Frames: %s " % (tracklet.num_frames))
-        print("    Start:  (%s, %s, %s) " % tuple(tracklet.trans[0]))
-        print("    End:  (%s, %s, %s) " % tuple(tracklet.trans[-2]))
-    return tracklets
+    if os.path.exists(xml_filepath):
+        print("Loading tracklets from '%s'" % xml_filepath)
+        tracklets = pt.parse_xml(xml_filepath)
+        for i in range(len(tracklets)):
+            tracklet = tracklets[i]
+            h, w, l = tracklet.size
+            print("%s. %s" % ((i + 1), tracklet.object_type))
+            print("    LxWxH:  %s x %s x %s" % (l, w, h))
+            print("    Frame0: %s " % (tracklet.first_frame))
+            print("    Frames: %s " % (tracklet.num_frames))
+            print("    Start:  (%s, %s, %s) " % tuple(tracklet.trans[0]))
+            print("    End:  (%s, %s, %s) " % tuple(tracklet.trans[-2]))
+        return tracklets
 
 
 def get_centroids(tracklets):
-    centroids = []
-    for tracklet in tracklets:
-        tracklet_centroids = []
-        for i in range(tracklet.num_frames):
-            trans_xyz = tracklet.trans[i]
-            obj_lwh = tracklet.size
-            centroid = np.array(trans_xyz)  # + np.array(obj_lwh)/2.0
-            tracklet_centroids.append(centroid)
-        centroids.append(tracklet_centroids)
-    return centroids
+    if tracklets is not None:
+        centroids = []
+        for tracklet in tracklets:
+            tracklet_centroids = []
+            for i in range(tracklet.num_frames):
+                trans_xyz = tracklet.trans[i]
+                obj_lwh = tracklet.size
+                centroid = np.array(trans_xyz)  # + np.array(obj_lwh)/2.0
+                tracklet_centroids.append(centroid)
+            centroids.append(tracklet_centroids)
+        return centroids
 
 
 def mkdir_p(path):
