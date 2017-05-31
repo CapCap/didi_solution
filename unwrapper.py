@@ -2,7 +2,7 @@ import numpy as np
 from image_utils import array_to_image
 
 # degree to radians
-D2R = (np.pi / 180)
+D2R = (np.pi / 180.0)
 
 V_RES_DEG = 1.0  # 0.9
 H_RES_DEG = 0.9  # 75 #0.3
@@ -56,7 +56,8 @@ def unwrap_point(x, y, z, d, rotation_deg=0.0):
     theta = rotation_deg * float(D2R)
     if theta != 0:
         x, y, z = rotate_around_center(x, y, z, theta).T
-
+    else:
+        x, y, z = [[x], [y], [z]]
     # MAP TO CYLINDER
     x_img = np.arctan2(y, x) / H_RES_RAD
     y_img = -(np.arctan2(z, d) / V_RES_RAD)
@@ -68,18 +69,23 @@ def unwrap_point(x, y, z, d, rotation_deg=0.0):
     return x_img, y_img
 
 
-def wrap_point(x, y, d, im_height, im_width, vertical_offset=0.0, rotation_deg=0.0):
-    float(x)/float(im_width)
+def wrap_point(img_x, img_y, d, unrotation_deg=0.0):
     # UNSHIFT COORDINATES
-    x = np.trunc(-x + X_MIN).astype(np.int32)
-    y = np.trunc(y + Y_MIN + vertical_offset).astype(np.int32)
+    img_x = np.trunc(-img_x - X_MIN).astype(np.int32)
+    img_y = np.trunc(img_y + Y_MIN).astype(np.int32)
 
-    theta = rotation_deg * float(D2R)
+    angle_rad = H_RES_RAD * img_x
+    z = np.tan(-V_RES_RAD * img_y) * d
+    x = d * np.cos(angle_rad)
+    y = d * np.sin(angle_rad)
+
+    theta = unrotation_deg * float(D2R)
     if theta != 0:
-        x, y, d = rotate_around_center(x, y, d, theta).T
+        x, y, z = rotate_around_center(x, y, z, -theta).T
+    else:
+        x, y, z = [[x], [y], [z]]
 
-    return x, y, d
-
+    return x, y, z
 
 def calculate_distance(points, d_range=(-10.0, 200.0)):
     # map distance relative to origin
@@ -109,7 +115,7 @@ def point_cloud_to_panorama(points,
 
     xy_points = [x_points, y_points]
 
-    img_distance = array_to_image(d_points, xy_points, IMG_DIMENSIONS)
+    img_distance = (d_points, xy_points, IMG_DIMENSIONS)
     img_intensity = array_to_image(r_points, xy_points, IMG_DIMENSIONS)
 
     return img_distance, img_intensity

@@ -51,6 +51,9 @@ def new_past_images():
                 "distance": new_lagging_image()}
 
 
+SCALE_UP = 1.5
+
+
 def process():
     for data_group_name, data_item_name, loaded_data in deep_load_folder(args.input_folder):
         output_folder_path = os.path.join(args.output_folder, data_group_name, data_item_name)
@@ -90,7 +93,7 @@ def process():
 
                 ts_start = group.axes[0][0]
                 for display in ["distance", "intensity"]:
-                    img = past_images[display][rotation_deg].get_lagged_image(scale_up=1.5)
+                    img = past_images[display][rotation_deg].get_lagged_image(scale_up=SCALE_UP)
                     # img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
                     img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
@@ -103,7 +106,7 @@ def process():
                     if centroid is not None:
                         tracklet_filename = "%s.txt" % filename_base
                         with open(os.path.join(output_folder_path, tracklet_filename), 'w') as tracklet_file:
-                            tracklet_file.write("%s, %s, %s" % (x, y, r))
+                            tracklet_file.write("%s, %s, %s" % (x * SCALE_UP, y * SCALE_UP * 1.2, r))
 
                     image_filename = "%s.png" % filename_base
                     image_unlabelled_output_folder = os.path.join(output_folder_path, "unlabelled")
@@ -116,7 +119,7 @@ def process():
                     if centroid is None:
                         frames[display][rotation_deg].append(img)
                     else:
-                        img_centroid = draw_centroid(img, centroid, scale=1.5, rotation_deg=rotation_deg)
+                        img_centroid = draw_centroid(img, centroid, scale=SCALE_UP, rotation_deg=rotation_deg)
                         image_labelled_output_folder = os.path.join(output_folder_path, "labelled")
                         mkdir_p(image_labelled_output_folder)
                         cv2.imwrite(os.path.join(image_labelled_output_folder, image_filename), img_centroid)

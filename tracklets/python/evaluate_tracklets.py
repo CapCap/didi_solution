@@ -159,7 +159,6 @@ class EvalFrame(object):
         # with the largest IOU. Possibly other matching algorithms will work better/be more efficient.
         # NOTE: This is not a tracking oriented matching like MOTA, predicted -> gt affinity context
         # would need to be passed between frame evaluations for that.
-
         intersections = []
         fn = set(range(len(self.gt_obs)))  # gt idx for gt that don't have any intersecting pred
         fp = set(range(len(self.pred_obs)))  # pred idx for pred not intersecting any gt
@@ -168,6 +167,14 @@ class EvalFrame(object):
         for p_idx, p in enumerate(self.pred_obs):
             for g_idx, g in enumerate(self.gt_obs):
                 if p.object_type == g.object_type:
+                    import pdb
+                    #pdb.set_trace()
+                    #px,py,pz,pr = p.get_sphere()
+                    #gx,gy,gz,gr = g.get_sphere()
+                    print("predicted: %s %s %s %s"%tuple(list(p.get_sphere())))
+                    print("actual:    %s %s %s %s"%tuple(list(g.get_sphere())))
+                    print("diff:      %s %s %s %s"%tuple(list(np.subtract(p.get_sphere(), g.get_sphere()))))
+                    print("----------")
                     iou_val, intersection_vol = g.intersection(p, method=method)
                     if iou_val > 0:
                         intersections.append((iou_val, intersection_vol, p_idx, g_idx))
