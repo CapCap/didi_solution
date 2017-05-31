@@ -68,10 +68,20 @@ def unwrap_point(x, y, z, d, rotation_deg=0.0):
     return x_img, y_img
 
 
-def point_cloud_to_panorama(points,
-                            d_range=(-10.0, 200.0),
-                            rotation_deg=0.0,
-                            ):
+def wrap_point(x, y, d, im_height, im_width, vertical_offset=0.0, rotation_deg=0.0):
+    float(x)/float(im_width)
+    # UNSHIFT COORDINATES
+    x = np.trunc(-x + X_MIN).astype(np.int32)
+    y = np.trunc(y + Y_MIN + vertical_offset).astype(np.int32)
+
+    theta = rotation_deg * float(D2R)
+    if theta != 0:
+        x, y, d = rotate_around_center(x, y, d, theta).T
+
+    return x, y, d
+
+
+def calculate_distance(points, d_range=(-10.0, 200.0)):
     # map distance relative to origin
     # z is up, x is forward, y is left
     points['map_distance'] = distance(points['x'], points['y'])  # np.sqrt(points['x']**2 + points['y']**2)
@@ -82,6 +92,15 @@ def point_cloud_to_panorama(points,
     points = points[points['map_distance'] > d_range[0]]
     points = points[points['map_distance'] < d_range[1]]
     # print("filtered points", points.shape)
+
+    return points
+
+
+def point_cloud_to_panorama(points,
+                            d_range=(-10.0, 200.0),
+                            rotation_deg=0.0,
+                            ):
+    points = calculate_distance(points, d_range)
 
     d_points = points['map_distance']
     r_points = np.sqrt(points['intensity'])
