@@ -66,7 +66,7 @@ def save_video(frames_dict, fps=13):
             arranged_clips[-1].append(arranged_clips[-1][-1])
     final_clip = clips_array(arranged_clips)
     #final_clip.write_videofile("data_3_14_results_output.mp4", codec='mpeg4')
-    final_clip.write_videofile("results_output.mp4", codec='mpeg4')
+    final_clip.write_videofile("results_output.mp4", codec='libx264')
 
 
 def parse_image_name(image_name):
@@ -76,14 +76,14 @@ def parse_image_name(image_name):
     return rot, display_type, timestamp_str
 
 
-center_json = load_center_json("new_centers_json.js")
+center_json = load_center_json("center_without_false_positives_json.js")
 #center_json = load_center_json("data_3_14_centers_json.js")
 base_folder = "/Users/max/Desktop/carchallenge/training_data/round_1_test/19_f2/unlabelled"
 #base_folder = "/Users/max/Desktop/carchallenge/training_data/data_3/14/labelled"
 
 points_filepath = "/Users/max/Desktop/carchallenge/car_out/round_1_test/19_f2"
 #points_filepath = "/Users/max/Desktop/carchallenge/car_out/data_3/14"
-data = handle_data_folder(points_filepath)
+#data = handle_data_folder(points_filepath)
 
 #df_points = data["points"]
 image_names = sorted([key for key in six.iterkeys(center_json)])
@@ -94,6 +94,8 @@ tracklets = []
 
 for image_name in image_names:
     rot, display_type, timestamp_str = parse_image_name(image_name)
+    #if rot != 0.0:
+    #    continue
 
     if rot not in xyz_point_dict:
         xyz_point_dict[rot] = []
