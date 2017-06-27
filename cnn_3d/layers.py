@@ -68,8 +68,8 @@ def conv3DLayer(input_layer, input_dim, output_dim, size, stride, activation=tf.
         bias = tf.nn.bias_add(conv, b)
         if activation:
             bias = activation(bias, name="activation")
-
-    return batch_norm(bias, is_training)
+        bias = batch_norm(bias, is_training)
+    return bias
 
 
 def conv3D_to_output(input_layer, input_dim, output_dim, size, stride, activation=tf.nn.relu, padding="SAME", name=""):
@@ -161,10 +161,12 @@ def lidar_generator(batch_num, points_glob, labels_glob, resolution=0.2, scale=4
 
         for points_path, label_path in zip(points_paths[batch_start:batch_end], points_paths[batch_start:batch_end]):
 
+            #print("point path: %s"%points_path)
             pc = load_pc_from_pcd(points_path)
-
+            
+            #print("label path: %s"%label_path)
             places, rots, size = read_labels(label_path)
-            if places is None:
+            if places is None or len(places.shape) == 0:
                 print("places is none for: %s" % (label_path))
                 continue
 

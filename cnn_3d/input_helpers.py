@@ -46,6 +46,12 @@ def read_label_from_xml(label_path):
 def get_boxcorners(places, rots, size):
     """Create 8 corners of bounding box from bottom center."""
     corners = []
+    try:
+        zip(places, rots, size)
+    except: 
+        import pdb
+        pdb.set_trace()
+        
     for place, rot, sz in zip(places, rots, size):
         x, y, z = place
         h, w, l = sz
