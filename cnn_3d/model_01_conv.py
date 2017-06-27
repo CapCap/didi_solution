@@ -82,8 +82,7 @@ class CNNModel(object):
 
 def train(batch_num, points_glob, labels_glob, resolution=0.2, scale=4, lr=0.01, voxel_shape=(800, 800, 40), x=(0, 80), y=(-40, 40), z=(-2.5, 1.5), epochs=1):
     print("Training...")
-    print (points_glob, labels_glob, resolution=resolution, scale=scale, x=x, y=y, z=z)
-    return
+
     with tf.Session() as sess:
         model, voxel, phase_train = get_model(sess,
                                               CNNModel,
@@ -104,7 +103,7 @@ def train(batch_num, points_glob, labels_glob, resolution=0.2, scale=4, lr=0.01,
                                                                         x=x,
                                                                         y=y,
                                                                         z=z):
-                # print( batch_x.shape, batch_g_map.shape, batch_g_cord.shape, batch_num )
+                #print( batch_x.shape, batch_g_map.shape, batch_g_cord.shape, batch_num )
                 # print("batch_x.shape: ", batch_x.shape )
                 # print("batch_g_map.shape: ", batch_g_map.shape )
                 # print("batch_g_cord.shape: ", batch_g_cord.shape )
