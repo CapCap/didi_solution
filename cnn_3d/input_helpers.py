@@ -48,10 +48,10 @@ def get_boxcorners(places, rots, size):
     corners = []
     try:
         zip(places, rots, size)
-    except: 
+    except:
         import pdb
         pdb.set_trace()
-        
+
     for place, rot, sz in zip(places, rots, size):
         x, y, z = place
         h, w, l = sz
@@ -84,6 +84,8 @@ def get_boxcorners(places, rots, size):
 
 
 rospy_node = None
+
+
 def publish_pc2(pc, obj):
     """Publisher of PointCloud data"""
     global rospy_node
@@ -108,11 +110,11 @@ def publish_pc2(pc, obj):
     header.frame_id = "velodyne"
     points2 = pc2.create_cloud_xyz32(header, obj)
 
-    #r = rospy.Rate(0.1)
-    #while not rospy.is_shutdown():
+    # r = rospy.Rate(0.1)
+    # while not rospy.is_shutdown():
     pub.publish(points)
     pub2.publish(points2)
-    #r.sleep()
+    # r.sleep()
 
 
 def pc2voxel(pc, resolution=0.50, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5)):
@@ -132,8 +134,14 @@ def pc2voxel(pc, resolution=0.50, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5)):
     return voxel
 
 
-def center2sphere(places, size, resolution=0.5, min_value=np.array([0.0, 0.0, 0.0]), scale=4, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5)):
+def center2sphere(places, size, resolution=0.5, scale=4, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5), min_value=None):
     """Convert object label to Training label for objectness loss"""
+
+    if min_value is None:
+        # min_value = [0.0, 0.0, 0.0]
+        min_value = [x[0], y[0], z[0]]
+    min_value = np.array(min_value)
+
     logic_x = np.logical_and(places[:, 0] >= x[0], places[:, 0] < x[1])
     logic_y = np.logical_and(places[:, 1] >= y[0], places[:, 1] < y[1])
     logic_z = np.logical_and(places[:, 2] >= z[0], places[:, 2] < z[1])
@@ -145,16 +153,23 @@ def center2sphere(places, size, resolution=0.5, min_value=np.array([0.0, 0.0, 0.
     return sphere_center
 
 
-def sphere2center(p_sphere, resolution=0.5, scale=4, min_value=np.array([0.0, 0.0, 0.0])):
+def sphere2center(p_sphere, resolution=0.5, scale=4, min_value=None):
     """from sphere center to label center"""
+
+    if min_value is None:
+        min_value = [0.0, 0.0, 0.0]
+    min_value = np.array(min_value)
+
     center = p_sphere * (resolution * scale) + min_value
     return center
+
 
 def get_label_path_for_point_path(point_path):
     ppath_parts = point_path.split('/')
     ppath_parts[-1] = ppath_parts[-1].replace('pcd', 'pickle')
     ppath_parts[-2] = 'labels'
     return os.path.join("/", *ppath_parts)
+
 
 def read_labels(label_path):
     places = None
@@ -177,15 +192,17 @@ def read_labels(label_path):
 
 
 def create_label(places, size, corners, resolution=0.50, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5), scale=4, min_value=None):
+    """Create training Labels"""
+
     if min_value is None:
-        min_value = [0.0, 0.0, 0.0]
+        #min_value = [0.0, 0.0, 0.0]
+        min_value = [x[0], y[0], z[0]]
     min_value = np.array(min_value)
 
     places = np.array(places)
     size = np.array(size)
     corners = np.array(corners)
 
-    """Create training Labels"""
     x_logical = np.logical_and((places[:, 0] < x[1]), (places[:, 0] >= x[0]))
     y_logical = np.logical_and((places[:, 1] < y[1]), (places[:, 1] >= y[0]))
     z_logical = np.logical_and((places[:, 2] + size[:, 0] / 2.0 < z[1]), (places[:, 2] + size[:, 0] / 2.0 >= z[0]))
@@ -197,9 +214,9 @@ def create_label(places, size, corners, resolution=0.50, x=(0, 90), y=(-50, 50),
 
     train_corners = corners[xyz_logical].copy()
     anchor_center = sphere2center(sphere_center,
-                                     resolution=resolution,
-                                     scale=scale,
-                                     min_value=min_value)
+                                  resolution=resolution,
+                                  scale=scale,
+                                  min_value=min_value)
 
     for index, (corner, center) in enumerate(zip(corners[xyz_logical], anchor_center)):
         train_corners[index] = corner - center
@@ -208,11 +225,13 @@ def create_label(places, size, corners, resolution=0.50, x=(0, 90), y=(-50, 50),
 
 
 def corner_to_train(corners, sphere_center, resolution=0.50, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5), scale=4, min_value=None):
-    if min_value is None:
-        min_value = [0.0, 0.0, 0.0]
-
-    min_value = np.array(min_value)
     """Convert corner to Training label for regression loss"""
+
+    if min_value is None:
+        #min_value = [0.0, 0.0, 0.0]
+        min_value = [x[0], y[0], z[0]]
+    min_value = np.array(min_value)
+
     x_logical = np.logical_and((corners[:, :, 0] < x[1]), (corners[:, :, 0] >= x[0]))
     y_logical = np.logical_and((corners[:, :, 1] < y[1]), (corners[:, :, 1] >= y[0]))
     z_logical = np.logical_and((corners[:, :, 2] < z[1]), (corners[:, :, 2] >= z[0]))
@@ -220,9 +239,9 @@ def corner_to_train(corners, sphere_center, resolution=0.50, x=(0, 90), y=(-50, 
 
     train_corners = corners[xyz_logical].copy()
     sphere_center = sphere2center(sphere_center,
-                                     resolution=resolution,
-                                     scale=scale,
-                                     min_value=min_value)
+                                  resolution=resolution,
+                                  scale=scale,
+                                  min_value=min_value)
 
     for index, (corner, center) in enumerate(zip(corners[xyz_logical], sphere_center)):
         train_corners[index] = corner - center

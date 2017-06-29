@@ -239,7 +239,7 @@ def test(model_path, points_path, resolution=0.2, scale=4, voxel_shape=(800, 800
 
         publish_pc2(pc, corners.reshape(-1, 3))
 
-        return coordinate[index], centers, y_pred
+        return coordinate, centers, y_pred
 
 
 if __name__ == '__main__':
