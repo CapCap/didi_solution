@@ -126,7 +126,7 @@ def clear_tf_graph():
 
 
 def train(batch_num, points_glob, resolution=0.2, scale=4, lr=0.01, voxel_shape=(800, 800, 40), x=(0, 80), y=(-40, 40), z=(-2.5, 1.5), epochs=1,
-          model_path=None, clear_graph=False):
+          model_path=None, clear_graph=False, model_prefix="3dcnn_"):
     if clear_graph:
         clear_tf_graph()
 
@@ -172,9 +172,9 @@ def train(batch_num, points_glob, resolution=0.2, scale=4, lr=0.01, voxel_shape=
                 # print("Epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(co))
                 print("Epoch:", '%04d' % (epoch + 1), "cord_loss_cost=", "{:.9f}".format(cc), "is_obj_loss_cost=", "{:.9f}".format(iol), "non_obj_loss_cost=", "{:.9f}".format(nol))
 
-            if (epoch > 0) and (epoch % 1 == 0):
-                print("Save epoch " + str(epoch))
-                saver.save(sess, "3dcnn_" + str(epoch) + ".ckpt")
+            print("Save epoch " + str(epoch + 1))
+            checkpoint_name = model_prefix + ("%sx%sx%s_" % voxel_shape) + ("res%s_" % resolution) + ("sc%s" % scale) + str(epoch + 1) + ".ckpt"
+            saver.save(sess, checkpoint_name)
 
         print("Training Complete!")
 
