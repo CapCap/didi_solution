@@ -45,8 +45,6 @@ class CNNModel(object):
         obj_output_shape = [tf.shape(self.layer3)[0], base_shape[1], base_shape[2], base_shape[3], 2]
         cord_output_shape = [tf.shape(self.layer3)[0], base_shape[1], base_shape[2], base_shape[3], 24]
 
-        self.y = tf.nn.softmax(self.objectness, dim=-1)
-
         self.objectness = deconv3D_to_output(self.layer3,
                                              input_dim=30,
                                              output_dim=2,
@@ -62,6 +60,9 @@ class CNNModel(object):
                                              stride=[1, 2, 2, 2, 1],
                                              output_shape=cord_output_shape,
                                              name="coordinate")
+
+        self.y = tf.nn.softmax(self.objectness, dim=-1)
+
 
         # self.layer1 = conv3DLayer(voxel,
         #                          input_dim=1,
@@ -113,7 +114,7 @@ class CNNModel(object):
         #                                  stride=[1, 1, 1, 1, 1],
         #                                  name="coordinate")
         #
-        self.y = tf.nn.softmax(self.objectness, dim=-1)
+        # self.y = tf.nn.softmax(self.objectness, dim=-1)
 
 
 def clear_tf_graph():
@@ -179,7 +180,6 @@ def train(batch_num, points_glob, resolution=0.2, scale=4, lr=0.01, voxel_shape=
 
 
 def test(model_path, points_path, resolution=0.2, scale=4, voxel_shape=(800, 800, 40), x=(0, 80), y=(-40, 40), z=(-2.5, 1.5), clear_graph=False):
-
     if clear_graph:
         clear_tf_graph()
 
@@ -210,12 +210,10 @@ def test(model_path, points_path, resolution=0.2, scale=4, voxel_shape=(800, 800
         # new_saver.restore(sess, model_path)
         # new_saver.restore(sess, tf.train.latest_checkpoint('./'))
 
-        objectness = model.objectness
-        coordinate = model.coordinate
-        y_pred = model.y
-        objectness = sess.run(objectness, feed_dict={voxel: voxel_x})[0, :, :, :, 0]
-        coordinate = sess.run(coordinate, feed_dict={voxel: voxel_x})[0]
-        y_pred = sess.run(y_pred, feed_dict={voxel: voxel_x})[0, :, :, :, 0]
+        objectness = sess.run(model.objectness, feed_dict={voxel: voxel_x})  # [0, :, :, :, 0]
+        coordinate = sess.run(model.coordinate, feed_dict={voxel: voxel_x})  # [0]
+        y_pred = sess.run(model.y, feed_dict={voxel: voxel_x})  # [0, :, :, :, 0]
+
         print("objectness.shape: ", objectness.shape)
         print("objectness.max && min: ", objectness.max(), objectness.min())
         print("y_pred.shape: ", y_pred.shape)
@@ -233,7 +231,7 @@ def test(model_path, points_path, resolution=0.2, scale=4, voxel_shape=(800, 800
                                 resolution=resolution,
                                 scale=scale,
                                 min_value=np.array([x[0], y[0], z[0]]))
-        import pdb
+
         # corners = coordinate[index].reshape(-1, 8, 3) + centers[:, np.newaxis]
         corners = (coordinate[index].T + centers)
         print("corners_shape: ", corners.shape)
@@ -241,7 +239,7 @@ def test(model_path, points_path, resolution=0.2, scale=4, voxel_shape=(800, 800
 
         publish_pc2(pc, corners.reshape(-1, 3))
 
-        return coordinate[index], centers
+        return coordinate[index], centers, y_pred
 
 
 if __name__ == '__main__':
