@@ -178,14 +178,16 @@ def lidar_generator(batch_num, points_glob, resolution=0.2, scale=4, x=(0, 80), 
 
         for points_path in points_paths[batch_start:batch_end]:
 
+            label_path = get_label_path_for_point_path(points_path)
             # print("point path: %s"%points_path)
-            pc = load_pc_from_pcd(points_path)
 
             # print("label path: %s"%label_path)
             places, rots, size = read_labels(label_path)
             if places is None or len(places.shape) == 0:
                 print("places is none for: %s, %s" % (label_path, points_path))
                 continue
+
+            pc = load_pc_from_pcd(points_path)
 
             corners = get_boxcorners(places, rots, size)
 
@@ -218,6 +220,7 @@ def lidar_generator(batch_num, points_glob, resolution=0.2, scale=4, x=(0, 80), 
                                             y=(y[1] - y[0]),
                                             z=(z[1] - z[0]),
                                             scale=scale)
+
             g_cord = corner_label.reshape(corner_label.shape[0], -1)
             g_cord = corner_to_voxel(voxel.shape, g_cord, center_sphere, scale=scale)
 
