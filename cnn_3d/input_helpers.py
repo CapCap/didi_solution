@@ -83,15 +83,20 @@ def get_boxcorners(places, rots, size):
     return np.array(corners)
 
 
+rospy_node = None
 def publish_pc2(pc, obj):
     """Publisher of PointCloud data"""
+    global rospy_node
     import rospy
     import sensor_msgs.point_cloud2 as pc2
     from sensor_msgs.msg import PointCloud2
     import std_msgs
 
+    if rospy_node is None:
+        rospy_node = rospy.init_node("pc2_publisher")
+
     pub = rospy.Publisher("/points_raw", PointCloud2, queue_size=1000000)
-    rospy.init_node("pc2_publisher")
+
     header = std_msgs.msg.Header()
     header.stamp = rospy.Time.now()
     header.frame_id = "velodyne"
@@ -103,11 +108,11 @@ def publish_pc2(pc, obj):
     header.frame_id = "velodyne"
     points2 = pc2.create_cloud_xyz32(header, obj)
 
-    r = rospy.Rate(0.1)
-    while not rospy.is_shutdown():
-        pub.publish(points)
-        pub2.publish(points2)
-        r.sleep()
+    #r = rospy.Rate(0.1)
+    #while not rospy.is_shutdown():
+    pub.publish(points)
+    pub2.publish(points2)
+    #r.sleep()
 
 
 def pc2voxel(pc, resolution=0.50, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5)):
@@ -145,6 +150,12 @@ def sphere2center(p_sphere, resolution=0.5, scale=4, min_value=np.array([0.0, 0.
     center = p_sphere * (resolution * scale) + min_value
     return center
 
+def get_label_path_for_point_path(point_path):
+    ppath_parts = point_path.split('/')
+    ppath_parts[-1] = ppath_parts[-1].replace('pcd', 'pickle')
+    ppath_parts[-2] = 'labels'
+    return os.path.join("/", *ppath_parts)
+
 def read_labels(label_path):
     places = None
     rots = None
@@ -177,7 +188,7 @@ def create_label(places, size, corners, resolution=0.50, x=(0, 90), y=(-50, 50),
     """Create training Labels"""
     x_logical = np.logical_and((places[:, 0] < x[1]), (places[:, 0] >= x[0]))
     y_logical = np.logical_and((places[:, 1] < y[1]), (places[:, 1] >= y[0]))
-    z_logical = np.logical_and((places[:, 2] + size[:, 0] / 2.0 < z[1]), (places[:, 2] + size[:, 0] / 20. >= z[0]))
+    z_logical = np.logical_and((places[:, 2] + size[:, 0] / 2.0 < z[1]), (places[:, 2] + size[:, 0] / 2.0 >= z[0]))
     xyz_logical = np.logical_and(x_logical, np.logical_and(y_logical, z_logical))
 
     center = places.copy()

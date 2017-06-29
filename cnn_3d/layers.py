@@ -72,7 +72,7 @@ def conv3DLayer(input_layer, input_dim, output_dim, size, stride, activation=tf.
     return bias
 
 
-def conv3D_to_output(input_layer, input_dim, output_dim, size, stride, activation=tf.nn.relu, padding="SAME", name=""):
+def conv3D_to_output(input_layer, input_dim, output_dim, size, stride, padding="SAME", name=""):
     height, width, length = size
     with tf.variable_scope("conv3D" + name):  # , reuse=True):
         kernel = tf.get_variable("weights",
@@ -83,14 +83,15 @@ def conv3D_to_output(input_layer, input_dim, output_dim, size, stride, activatio
         return tf.nn.conv3d(input_layer, kernel, stride, padding=padding)
 
 
-def deconv3D_to_output(input_layer, input_dim, output_dim, height, width, length, stride, output_shape, activation=tf.nn.relu, padding="SAME", name=""):
+def deconv3D_to_output(input_layer, input_dim, output_dim, size, stride, output_shape, padding="SAME", name=""):
+    height, width, length = size
     with tf.variable_scope("deconv3D" + name):  # , reuse=True):
         kernel = tf.get_variable("weights",
                                  shape=[length, height, width, output_dim, input_dim],
                                  dtype=tf.float32,
                                  initializer=tf.constant_initializer(0.01))
 
-        return tf.nn.conv3d_transpose(input_layer, kernel, output_shape, stride, padding="SAME")
+        return tf.nn.conv3d_transpose(input_layer, kernel, output_shape, stride, padding=padding)
 
 
 def fully_connected(input_layer, shape, name="", is_training=True):
@@ -103,9 +104,18 @@ def fully_connected(input_layer, shape, name="", is_training=True):
         fully = tf.nn.relu(fully)
         return batch_norm(fully, is_training)
 
-
+cnn_model = None
+model_voxel = None
+phase_train = None
 def get_model(sess, model_klass, voxel_shape=(300, 300, 300), activation=tf.nn.relu, is_training=True):
-    voxel = tf.placeholder(tf.float32, [None, voxel_shape[0], voxel_shape[1], voxel_shape[2], 1])
+    global cnn_model
+    global model_voxel
+    global phase_train
+
+    if cnn_model is not None:
+        return cnn_model, model_voxel, phase_train
+
+    model_voxel = tf.placeholder(tf.float32, [None, voxel_shape[0], voxel_shape[1], voxel_shape[2], 1])
 
     phase_train = None
     if is_training:
@@ -113,18 +123,27 @@ def get_model(sess, model_klass, voxel_shape=(300, 300, 300), activation=tf.nn.r
 
     with tf.variable_scope("3DCNN") as scope:
         cnn_model = model_klass()
-        cnn_model.build_graph(voxel, activation=activation, is_training=phase_train)
+        cnn_model.build_graph(model_voxel, activation=activation, is_training=phase_train)
 
     if is_training:
         initialized_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="3DCNN")
         sess.run(tf.variables_initializer(initialized_var))
 
-    return cnn_model, voxel, phase_train
+    return cnn_model, model_voxel, phase_train
 
+def loss_function2(model):
+    g_map = tf.placeholder(tf.float32, model.cordinate.get_shape().as_list()[:4])
+    obj_loss = tf.reduce_sum(tf.square(tf.subtract(model.objectness[:, :, :, :, 0], g_map)))
+
+    g_cord = tf.placeholder(tf.float32, model.cordinate.get_shape().as_list())
+    cord_diff = tf.multiply(g_map, tf.reduce_sum(tf.square(tf.subtract(model.cordinate, g_cord)), 4))
+    cord_loss = tf.reduce_sum(cord_diff) * 0.1
+
+    return tf.add(obj_loss, cord_loss), g_map, g_cord
 
 def loss_function(model, ero=0.00001):
-    g_map = tf.placeholder(tf.float32, model.cordinate.get_shape().as_list()[:4])
-    g_cord = tf.placeholder(tf.float32, model.cordinate.get_shape().as_list())
+    g_map = tf.placeholder(tf.float32, model.coordinate.get_shape().as_list()[:4])
+    g_cord = tf.placeholder(tf.float32, model.coordinate.get_shape().as_list())
     non_gmap = tf.subtract(tf.ones_like(g_map, dtype=tf.float32), g_map)
 
     y = model.y
@@ -133,7 +152,7 @@ def loss_function(model, ero=0.00001):
     cross_entropy = tf.add(is_obj_loss, non_obj_loss)
     obj_loss = cross_entropy
 
-    cord_diff = tf.multiply(g_map, tf.reduce_sum(tf.square(tf.subtract(model.cordinate, g_cord)), 4))
+    cord_diff = tf.multiply(g_map, tf.reduce_sum(tf.square(tf.subtract(model.coordinate, g_cord)), 4))
     cord_loss = tf.multiply(tf.reduce_sum(cord_diff), 0.02)
     return tf.add(obj_loss, cord_loss), obj_loss, cord_loss, is_obj_loss, non_obj_loss, g_map, g_cord, y
 
@@ -143,12 +162,10 @@ def create_optimizer(all_loss, lr=0.001):
     return opt.minimize(all_loss)
 
 
-def lidar_generator(batch_num, points_glob, labels_glob, resolution=0.2, scale=4, x=(0, 80), y=(-40, 40), z=(-2.5, 1.5)):
+def lidar_generator(batch_num, points_glob, resolution=0.2, scale=4, x=(0, 80), y=(-40, 40), z=(-2.5, 1.5)):
+    import sklearn
     points_paths = glob.glob(points_glob)
-    points_paths.sort()
-
-    labels_paths = glob.glob(labels_glob)
-    labels_paths.sort()
+    points_paths = sklearn.utils.shuffle(points_paths)
 
     iter_num = len(points_paths) // batch_num
 
@@ -159,15 +176,15 @@ def lidar_generator(batch_num, points_glob, labels_glob, resolution=0.2, scale=4
         batch_start = itn * batch_num
         batch_end = (itn + 1) * batch_num
 
-        for point_path, label_path in zip(points_paths[batch_start:batch_end], labels_paths[batch_start:batch_end]):
+        for points_path in points_paths[batch_start:batch_end]:
 
-            #print("point path: %s"%points_path)
-            pc = load_pc_from_pcd(point_path)
-            
-            #print("label path: %s"%label_path)
+            # print("point path: %s"%points_path)
+            pc = load_pc_from_pcd(points_path)
+
+            # print("label path: %s"%label_path)
             places, rots, size = read_labels(label_path)
             if places is None or len(places.shape) == 0:
-                print("places is none for: %s, %s" % (label_path, point_path))
+                print("places is none for: %s, %s" % (label_path, points_path))
                 continue
 
             corners = get_boxcorners(places, rots, size)
@@ -229,3 +246,4 @@ if __name__ == '__main__':
          voxel_shape=(800, 800, 40),
          x=(0, 80),
          y=(-40, 40), z=(-2.5, 1.5))
+
