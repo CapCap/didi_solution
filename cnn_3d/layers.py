@@ -199,6 +199,9 @@ def lidar_generator(batch_num, points_glob, resolution=0.2, scale=4, x=(0, 80), 
                 continue
             # print("point path: %s"%points_path)
 
+            if not os.path.exists(label_path):
+                continue
+
             # print("label path: %s"%label_path)
             places, rots, size = read_labels(label_path)
             if places is None or len(places.shape) == 0:
@@ -249,7 +252,7 @@ def lidar_generator(batch_num, points_glob, resolution=0.2, scale=4, x=(0, 80), 
             batch_voxel.append(voxel)
             batch_g_map.append(g_map)
             batch_g_cord.append(g_cord)
-        
+
         batch_voxel = np.array(batch_voxel, dtype=np.float32)
         if batch_voxel.shape[0] == 0:
             continue
@@ -257,7 +260,7 @@ def lidar_generator(batch_num, points_glob, resolution=0.2, scale=4, x=(0, 80), 
             batch_voxel = batch_voxel[:, :, :, :, np.newaxis]
         except:
             continue
-            
+
         yield batch_voxel, np.array(batch_g_map, dtype=np.float32), np.array(batch_g_cord, dtype=np.float32)
 
 
