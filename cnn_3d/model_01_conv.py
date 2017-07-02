@@ -6,7 +6,7 @@ from input_helpers import *
 import glob
 
 from layers import batch_norm, conv3DLayer, conv3D_to_output, deconv3D_to_output, fully_connected, \
-    loss_function, get_model, create_optimizer, lidar_generator
+    loss_function, get_model, create_optimizer, lidar_generator, loss_function2, loss_func
 
 
 class CNNModel(object):
@@ -14,107 +14,107 @@ class CNNModel(object):
         pass
 
     def build_graph(self, voxel, activation=tf.nn.relu, is_training=True):
-        self.layer1 = conv3DLayer(voxel,
-                                  input_dim=1,
-                                  output_dim=10,
-                                  size=(5, 5, 5),
-                                  stride=[1, 2, 2, 2, 1],
-                                  name="layer1",
-                                  activation=activation,
-                                  is_training=is_training)
-
-        self.layer2 = conv3DLayer(self.layer1,
-                                  input_dim=10,
-                                  output_dim=20,
-                                  size=(5, 5, 5),
-                                  stride=[1, 2, 2, 2, 1],
-                                  name="layer2",
-                                  activation=activation,
-                                  is_training=is_training)
-
-        self.layer3 = conv3DLayer(self.layer2,
-                                  input_dim=20,
-                                  output_dim=30,
-                                  size=(3, 3, 3),
-                                  stride=[1, 2, 2, 2, 1],
-                                  name="layer3",
-                                  activation=activation,
-                                  is_training=is_training)
-
-        base_shape = self.layer2.get_shape().as_list()
-        obj_output_shape = [tf.shape(self.layer3)[0], base_shape[1], base_shape[2], base_shape[3], 2]
-        cord_output_shape = [tf.shape(self.layer3)[0], base_shape[1], base_shape[2], base_shape[3], 24]
-
-        self.objectness = deconv3D_to_output(self.layer3,
-                                             input_dim=30,
-                                             output_dim=2,
-                                             size=(3, 3, 3),
-                                             stride=[1, 2, 2, 2, 1],
-                                             output_shape=obj_output_shape,
-                                             name="objectness")
-
-        self.coordinate = deconv3D_to_output(self.layer3,
-                                             input_dim=30,
-                                             output_dim=24,
-                                             size=(3, 3, 3),
-                                             stride=[1, 2, 2, 2, 1],
-                                             output_shape=cord_output_shape,
-                                             name="coordinate")
-
-        self.y = tf.nn.softmax(self.objectness, dim=-1)
-
-
-        # self.layer1 = conv3DLayer(voxel,
+        #self.layer1 = conv3DLayer(voxel,
         #                          input_dim=1,
-        #                          output_dim=16,
+        #                          output_dim=10,
         #                          size=(5, 5, 5),
         #                          stride=[1, 2, 2, 2, 1],
         #                          name="layer1",
         #                          activation=activation,
         #                          is_training=is_training)
-        #
-        # self.layer2 = conv3DLayer(self.layer1,
-        #                          input_dim=16,
-        #                          output_dim=32,
+#
+        #self.layer2 = conv3DLayer(self.layer1,
+        #                          input_dim=10,
+        #                          output_dim=20,
         #                          size=(5, 5, 5),
         #                          stride=[1, 2, 2, 2, 1],
         #                          name="layer2",
         #                          activation=activation,
         #                          is_training=is_training)
-        #
-        # self.layer3 = conv3DLayer(self.layer2,
-        #                          input_dim=32,
-        #                          output_dim=64,
+#
+        #self.layer3 = conv3DLayer(self.layer2,
+        #                          input_dim=20,
+        #                          output_dim=30,
         #                          size=(3, 3, 3),
         #                          stride=[1, 2, 2, 2, 1],
         #                          name="layer3",
         #                          activation=activation,
         #                          is_training=is_training)
-        #
-        # self.layer4 = conv3DLayer(self.layer3,
-        #                          input_dim=64,
-        #                          output_dim=64,
-        #                          size=(3, 3, 3),
-        #                          stride=[1, 1, 1, 1, 1],
-        #                          name="layer4",
-        #                          activation=activation,
-        #                          is_training=is_training)
-        #
-        # self.objectness = conv3D_to_output(self.layer4,
-        #                                   input_dim=64,
-        #                                   output_dim=2,
-        #                                   size=(3, 3, 3),
-        #                                   stride=[1, 1, 1, 1, 1],
-        #                                   name="objectness")
-        #
-        # self.coordinate = conv3D_to_output(self.layer4,
-        #                                  input_dim=64,
-        #                                  output_dim=24,
-        #                                  size=(3, 3, 3),
-        #                                  stride=[1, 1, 1, 1, 1],
-        #                                  name="coordinate")
-        #
-        # self.y = tf.nn.softmax(self.objectness, dim=-1)
+#
+        #base_shape = self.layer2.get_shape().as_list()
+        #obj_output_shape = [tf.shape(self.layer3)[0], base_shape[1], base_shape[2], base_shape[3], 2]
+        #cord_output_shape = [tf.shape(self.layer3)[0], base_shape[1], base_shape[2], base_shape[3], 24]
+#
+        #self.objectness = deconv3D_to_output(self.layer3,
+        #                                     input_dim=30,
+        #                                     output_dim=2,
+        #                                     size=(3, 3, 3),
+        #                                     stride=[1, 2, 2, 2, 1],
+        #                                     output_shape=obj_output_shape,
+        #                                     name="objectness")
+#
+        #self.coordinate = deconv3D_to_output(self.layer3,
+        #                                     input_dim=30,
+        #                                     output_dim=24,
+        #                                     size=(3, 3, 3),
+        #                                     stride=[1, 2, 2, 2, 1],
+        #                                     output_shape=cord_output_shape,
+        #                                     name="coordinate")
+#
+        #self.y = tf.nn.softmax(self.objectness, dim=-1)
+
+
+        self.layer1 = conv3DLayer(voxel,
+                                 input_dim=1,
+                                 output_dim=16,
+                                 size=(5, 5, 5),
+                                 stride=[1, 2, 2, 2, 1],
+                                 name="layer1",
+                                 activation=activation,
+                                 is_training=is_training)
+       
+        self.layer2 = conv3DLayer(self.layer1,
+                                 input_dim=16,
+                                 output_dim=32,
+                                 size=(5, 5, 5),
+                                 stride=[1, 2, 2, 2, 1],
+                                 name="layer2",
+                                 activation=activation,
+                                 is_training=is_training)
+       
+        self.layer3 = conv3DLayer(self.layer2,
+                                 input_dim=32,
+                                 output_dim=64,
+                                 size=(3, 3, 3),
+                                 stride=[1, 2, 2, 2, 1],
+                                 name="layer3",
+                                 activation=activation,
+                                 is_training=is_training)
+       
+        self.layer4 = conv3DLayer(self.layer3,
+                                 input_dim=64,
+                                 output_dim=64,
+                                 size=(3, 3, 3),
+                                 stride=[1, 1, 1, 1, 1],
+                                 name="layer4",
+                                 activation=activation,
+                                 is_training=is_training)
+       
+        self.objectness = conv3D_to_output(self.layer4,
+                                          input_dim=64,
+                                          output_dim=2,
+                                          size=(3, 3, 3),
+                                          stride=[1, 1, 1, 1, 1],
+                                          name="objectness")
+       
+        self.coordinate = conv3D_to_output(self.layer4,
+                                         input_dim=64,
+                                         output_dim=24,
+                                         size=(3, 3, 3),
+                                         stride=[1, 1, 1, 1, 1],
+                                         name="coordinate")
+       
+        self.y = tf.nn.softmax(self.objectness, dim=-1)
 
 
 def clear_tf_graph():
@@ -142,7 +142,7 @@ def train(batch_num, points_glob, resolution=0.2, scale=4, lr=0.01, voxel_shape=
         saver = tf.train.Saver()
         if model_path is not None:
             saver.restore(sess, model_path)
-
+        #total_loss, obj_loss, cord_loss, g_map, g_cord = loss_func(model)
         total_loss, obj_loss, cord_loss, is_obj_loss, non_obj_loss, g_map, g_cord, y_pred = loss_function(model)
         optimizer = create_optimizer(total_loss, lr=lr)
 
@@ -163,17 +163,18 @@ def train(batch_num, points_glob, resolution=0.2, scale=4, lr=0.01, voxel_shape=
                                                g_map: batch_g_map,
                                                g_cord: batch_g_cord,
                                                phase_train: True})
-                # ct = sess.run(total_loss, feed_dict={voxel: batch_x, g_map: batch_g_map, g_cord: batch_g_cord, phase_train:True})
-                # co = sess.run(obj_loss, feed_dict={voxel: batch_x, g_map: batch_g_map, g_cord: batch_g_cord, phase_train:True})
+                #ct = sess.run(total_loss, feed_dict={voxel: batch_x, g_map: batch_g_map, g_cord: batch_g_cord, phase_train:True})
+                #co = sess.run(obj_loss, feed_dict={voxel: batch_x, g_map: batch_g_map, g_cord: batch_g_cord, phase_train:True})
                 cc = sess.run(cord_loss, feed_dict={voxel: batch_x, g_map: batch_g_map, g_cord: batch_g_cord, phase_train: True})
                 iol = sess.run(is_obj_loss, feed_dict={voxel: batch_x, g_map: batch_g_map, g_cord: batch_g_cord, phase_train: True})
                 nol = sess.run(non_obj_loss, feed_dict={voxel: batch_x, g_map: batch_g_map, g_cord: batch_g_cord, phase_train: True})
-                # print("Epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(ct))
-                # print("Epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(co))
                 print("Epoch:", '%04d' % (epoch + 1), "cord_loss_cost=", "{:.9f}".format(cc), "is_obj_loss_cost=", "{:.9f}".format(iol), "non_obj_loss_cost=", "{:.9f}".format(nol))
+                
+                #print("Epoch:", '%04d' % (epoch + 1), "total_loss=", "{:.9f}".format(ct), "obj_loss=", "{:.9f}".format(co), "coord_loss=", "{:.9f}".format(cc))
+                
 
             print("Save epoch " + str(epoch + 1))
-            checkpoint_name = model_prefix + ("%sx%sx%s_" % voxel_shape) + ("res%s_" % resolution) + ("sc%s" % scale) + str(epoch + 1) + ".ckpt"
+            checkpoint_name = model_prefix + ("%sx%sx%s_" % voxel_shape) + ("res%s_" % resolution) + ("sc%s" % scale) +"_"+ str(epoch + 1) + ".ckpt"
             saver.save(sess, checkpoint_name)
 
         print("Training Complete!")
@@ -233,13 +234,13 @@ def test(model_path, points_path, resolution=0.2, scale=4, voxel_shape=(800, 800
                                 min_value=np.array([x[0], y[0], z[0]]))
 
         # corners = coordinate[index].reshape(-1, 8, 3) + centers[:, np.newaxis]
-        corners = (coordinate[index].T + centers)
-        print("corners_shape: ", corners.shape)
+        #corners = (coordinate[index].T + centers)
+        #print("corners_shape: ", corners.shape)
         print("voxels_shape: ", voxel.shape)
 
-        publish_pc2(pc, corners.reshape(-1, 3))
+        #publish_pc2(pc, corners.reshape(-1, 3))
 
-        return coordinate, centers, y_pred
+        return coordinate, objectness, centers, y_pred
 
 
 if __name__ == '__main__':

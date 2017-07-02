@@ -1,0 +1,2 @@
+model_checkpoint_path: "cnn_bigger_1200x1200x40_res0.1_sc8_1.ckpt"
+all_model_checkpoint_paths: "cnn_bigger_1200x1200x40_res0.1_sc8_1.ckpt"

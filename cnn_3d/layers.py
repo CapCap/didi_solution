@@ -132,18 +132,33 @@ def get_model(sess, model_klass, voxel_shape=(300, 300, 300), activation=tf.nn.r
     return cnn_model, model_voxel, phase_train
 
 def loss_function2(model):
-    g_map = tf.placeholder(tf.float32, model.cordinate.get_shape().as_list()[:4])
+    g_map = tf.placeholder(tf.float32, model.coordinate.get_shape().as_list()[:4])
     obj_loss = tf.reduce_sum(tf.square(tf.subtract(model.objectness[:, :, :, :, 0], g_map)))
 
-    g_cord = tf.placeholder(tf.float32, model.cordinate.get_shape().as_list())
-    cord_diff = tf.multiply(g_map, tf.reduce_sum(tf.square(tf.subtract(model.cordinate, g_cord)), 4))
-    cord_loss = tf.reduce_sum(cord_diff) * 0.1
+    g_cord = tf.placeholder(tf.float32, model.coordinate.get_shape().as_list())
+    cord_diff = tf.multiply(g_map, tf.reduce_sum(tf.square(tf.subtract(model.coordinate, g_cord)), 4))
+    cord_loss = tf.multiply(tf.reduce_sum(cord_diff), 0.02)
 
-    return tf.add(obj_loss, cord_loss), g_map, g_cord
+    return tf.add(obj_loss, cord_loss), obj_loss, cord_loss, g_map, g_cord
+
+def loss_func(model):
+    g_map = tf.placeholder(tf.float32, model.coordinate.get_shape().as_list()[:4])
+    g_cord = tf.placeholder(tf.float32, model.coordinate.get_shape().as_list())
+    object_loss = tf.multiply(g_map, model.objectness[:, :, :, :, 0])
+    non_gmap = tf.subtract(tf.ones_like(g_map, dtype=tf.float32), g_map)
+    nonobject_loss = tf.multiply(non_gmap, model.objectness[:, :, :, :, 1])
+    # sum_object_loss = tf.add(tf.exp(object_loss), tf.exp(nonobject_loss))
+    sum_object_loss = tf.exp(-tf.add(object_loss, nonobject_loss))
+    # sum_object_loss = tf.exp(-nonobject_loss)
+    bunbo = tf.add(tf.exp(-model.objectness[:, :, :, :, 0]), tf.exp(-model.objectness[:, :, :, :, 1]))
+    obj_loss = tf.multiply(tf.reduce_sum(-tf.log(tf.div(sum_object_loss, bunbo))), 0.005)
+
+    cord_diff = tf.multiply(g_map, tf.reduce_sum(tf.square(tf.subtract(model.coordinate, g_cord)), 4))
+    cord_loss = tf.reduce_sum(cord_diff)
+    return tf.add(obj_loss, cord_loss), obj_loss, cord_loss, g_map, g_cord
 
 def loss_function(model, ero=0.00001):
     g_map = tf.placeholder(tf.float32, model.coordinate.get_shape().as_list()[:4])
-    g_cord = tf.placeholder(tf.float32, model.coordinate.get_shape().as_list())
     non_gmap = tf.subtract(tf.ones_like(g_map, dtype=tf.float32), g_map)
 
     y = model.y
@@ -151,7 +166,8 @@ def loss_function(model, ero=0.00001):
     non_obj_loss = tf.multiply(-tf.reduce_sum(tf.multiply(non_gmap, tf.log(y[:, :, :, :, 1] + ero))), 0.0008)
     cross_entropy = tf.add(is_obj_loss, non_obj_loss)
     obj_loss = cross_entropy
-
+    
+    g_cord = tf.placeholder(tf.float32, model.coordinate.get_shape().as_list())
     cord_diff = tf.multiply(g_map, tf.reduce_sum(tf.square(tf.subtract(model.coordinate, g_cord)), 4))
     cord_loss = tf.multiply(tf.reduce_sum(cord_diff), 0.02)
     return tf.add(obj_loss, cord_loss), obj_loss, cord_loss, is_obj_loss, non_obj_loss, g_map, g_cord, y
@@ -179,6 +195,8 @@ def lidar_generator(batch_num, points_glob, resolution=0.2, scale=4, x=(0, 80), 
         for points_path in points_paths[batch_start:batch_end]:
 
             label_path = get_label_path_for_point_path(points_path)
+            if not os.path.exists(label_path):
+                continue
             # print("point path: %s"%points_path)
 
             # print("label path: %s"%label_path)
@@ -187,6 +205,10 @@ def lidar_generator(batch_num, points_glob, resolution=0.2, scale=4, x=(0, 80), 
                 print("places is none for: %s, %s" % (label_path, points_path))
                 continue
 
+            if  ( places[0][0] < x[0] or places[0][0] > x[1] ) or ( places[0][1] < y[0] or places[0][1] > y[1] ) or ( places[0][2] < z[0] or places[0][2] > z[1] ):
+                print("places (%s) out of bounds for: %s, %s" % (places[0], label_path, points_path))
+                continue
+                
             pc = load_pc_from_pcd(points_path)
 
             corners = get_boxcorners(places, rots, size)
@@ -227,8 +249,16 @@ def lidar_generator(batch_num, points_glob, resolution=0.2, scale=4, x=(0, 80), 
             batch_voxel.append(voxel)
             batch_g_map.append(g_map)
             batch_g_cord.append(g_cord)
-
-        yield np.array(batch_voxel, dtype=np.float32)[:, :, :, :, np.newaxis], np.array(batch_g_map, dtype=np.float32), np.array(batch_g_cord, dtype=np.float32)
+        
+        batch_voxel = np.array(batch_voxel, dtype=np.float32)
+        if batch_voxel.shape[0] == 0:
+            continue
+        try:
+            batch_voxel = batch_voxel[:, :, :, :, np.newaxis]
+        except:
+            continue
+            
+        yield batch_voxel, np.array(batch_g_map, dtype=np.float32), np.array(batch_g_cord, dtype=np.float32)
 
 
 if __name__ == '__main__':
