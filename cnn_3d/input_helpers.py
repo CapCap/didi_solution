@@ -87,7 +87,6 @@ rospy_node = None
 
 
 def publish_pc2(pc, obj):
-    """Publisher of PointCloud data"""
     global rospy_node
     import rospy
     import sensor_msgs.point_cloud2 as pc2
@@ -117,7 +116,37 @@ def publish_pc2(pc, obj):
     # r.sleep()
 
 
-def pc2voxel(pc, resolution=0.50, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5)):
+def get_orientation(corners_initial):
+    corners_initial = np.reshape(corners_initial, (-1, 3))
+    average = np.sum(corners_initial, axis=0) / corners_initial.shape[0]
+    corners = corners_initial - average
+    # print(corners[:, :2])
+    convx_hull = np.reshape(cv2.convexHull(np.array(corners[:, :2], dtype=np.float32)), (-1, 2))
+    rotated_convx_hull = np.vstack((convx_hull[1:], convx_hull[:1]))
+    distance_delta = convx_hull - rotated_convx_hull
+    distance_delta = np.linalg.norm(convx_hull - rotated_convx_hull, axis=1)
+    length_of_car_from_convex_hull = np.max(distance_delta)
+    width_of_car_from_convex_hull = np.min(distance_delta)
+    # print ('length of car:', length_of_car_from_convex_hull, 'width of car:', width_of_car_from_convex_hull)
+    l, w = length_of_car_from_convex_hull, width_of_car_from_convex_hull
+    a_mat = [[-l / 2., -w / 2.],
+             [l / 2., -w / 2.],
+             [-l / 2., w / 2.],
+             [-l / 2., -w / 2.],
+             [-l / 2., w / 2.],
+             [l / 2., w / 2.],
+             [l / 2., -w / 2.],
+             [l / 2., w / 2.]]
+    b_mat = corners[:, :2]
+    # pv(corners)
+    # pv(a_mat)
+    # pv(b_mat)
+    rot_mat = np.linalg.lstsq(a_mat, b_mat)[0]
+    angle = math.acos(rot_mat[0][0])
+    return angle
+
+
+def pc2voxel(pc, resolution, x, y, z):
     """Convert PointCloud2 to Voxel"""
     logic_x = np.logical_and(pc[:, 0] >= x[0], pc[:, 0] < x[1])
     logic_y = np.logical_and(pc[:, 1] >= y[0], pc[:, 1] < y[1])
@@ -134,11 +163,41 @@ def pc2voxel(pc, resolution=0.50, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5)):
     return voxel
 
 
-def center2sphere(places, size, resolution=0.5, scale=4, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5), min_value=None):
+
+def pc2voxel(pc, resolution, x, y, z, car_x=(-2, 2), car_y=(-2, 2), car_z=(-3, 2), filter_car=True):
+    """Convert PointCloud to Voxel"""
+
+    # Filter out or own car :-(
+    if filter_car:
+        car_logic_x = np.logical_and(pc[:, 0] > car_x[0], pc[:, 0] < car_x[1])
+        car_logic_y = np.logical_and(pc[:, 1] > car_y[0], pc[:, 1] < car_y[1])
+        car_logic_z = np.logical_and(pc[:, 2] > car_z[0], pc[:, 2] < car_z[1])
+        car_filter_xyz = np.logical_and(car_logic_x, np.logical_and(car_logic_y, car_logic_z))
+
+    logic_x = np.logical_and(pc[:, 0] >= x[0], pc[:, 0] < x[1])
+    logic_y = np.logical_and(pc[:, 1] >= y[0], pc[:, 1] < y[1])
+    logic_z = np.logical_and(pc[:, 2] >= z[0], pc[:, 2] < z[1])
+    logic_xyz = np.logical_and(logic_x, np.logical_and(logic_y, logic_z))
+
+    if filter_car:
+        pc = pc[:, :3][np.logical_and(np.logical_not(car_filter_xyz), logic_xyz)]
+    else:
+        pc = pc[:, :3][logic_xyz]
+
+    pc = ((pc - np.array([x[0], y[0], z[0]])) / resolution).astype(np.int32)
+
+    voxel = np.zeros((int((x[1] - x[0]) / resolution),
+                      int((y[1] - y[0]) / resolution),
+                      int(round((z[1] - z[0]) / resolution))
+                      ))
+    voxel[pc[:, 0], pc[:, 1], pc[:, 2]] = 1
+    return voxel
+
+
+def center2sphere(places, size, resolution, scale, x, y, z, min_value=None):
     """Convert object label to Training label for objectness loss"""
 
     if min_value is None:
-        # min_value = [0.0, 0.0, 0.0]
         min_value = [x[0], y[0], z[0]]
     min_value = np.array(min_value)
 
@@ -153,7 +212,7 @@ def center2sphere(places, size, resolution=0.5, scale=4, x=(0, 90), y=(-50, 50),
     return sphere_center
 
 
-def sphere2center(p_sphere, resolution=0.5, scale=4, min_value=None):
+def sphere2center(p_sphere, resolution, scale, min_value=None):
     """from sphere center to label center"""
 
     if min_value is None:
@@ -191,11 +250,10 @@ def read_labels(label_path):
     return np.array(places), np.array(rots), np.array(size)
 
 
-def create_label(places, size, corners, resolution=0.50, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5), scale=4, min_value=None):
+def create_label(places, size, corners, resolution, x, y, z, scale, min_value=None):
     """Create training Labels"""
 
     if min_value is None:
-        #min_value = [0.0, 0.0, 0.0]
         min_value = [x[0], y[0], z[0]]
     min_value = np.array(min_value)
 
@@ -224,11 +282,10 @@ def create_label(places, size, corners, resolution=0.50, x=(0, 90), y=(-50, 50),
     return sphere_center, train_corners
 
 
-def corner_to_train(corners, sphere_center, resolution=0.50, x=(0, 90), y=(-50, 50), z=(-4.5, 5.5), scale=4, min_value=None):
+def corner_to_train(corners, sphere_center, resolution, x, y, z, scale, min_value=None):
     """Convert corner to Training label for regression loss"""
 
     if min_value is None:
-        #min_value = [0.0, 0.0, 0.0]
         min_value = [x[0], y[0], z[0]]
     min_value = np.array(min_value)
 
@@ -250,9 +307,7 @@ def corner_to_train(corners, sphere_center, resolution=0.50, x=(0, 90), y=(-50, 
 
 
 def corner_to_voxel(voxel_shape, corners, sphere_center, scale=4):
-    """Create final regression label from corner"""
-    # import pdb
-    # pdb.set_trace()
+    """Create final regression label from corners"""
     corner_voxel = np.zeros((int(voxel_shape[0] / scale),
                              int(voxel_shape[1] / scale),
                              int(voxel_shape[2] / scale), 24))
@@ -260,7 +315,7 @@ def corner_to_voxel(voxel_shape, corners, sphere_center, scale=4):
     return corner_voxel
 
 
-def create_objectness_label(sphere_center, resolution=0.5, x=90, y=100, z=10, scale=4):
+def create_objectness_label(sphere_center, resolution, x, y, z, scale):
     """Create Objectness label"""
     obj_maps = np.zeros((int(x / (resolution * scale)),
                          int(y / (resolution * scale)),
@@ -268,31 +323,3 @@ def create_objectness_label(sphere_center, resolution=0.5, x=90, y=100, z=10, sc
                          ))
     obj_maps[sphere_center[:, 0], sphere_center[:, 1], sphere_center[:, 2]] = 1
     return obj_maps
-
-
-def process(points_path, label_path):
-    p = []
-    pc = load_pc_from_pcd(points_path)
-
-    places, rots, size = read_labels(label_path)
-
-    corners = get_boxcorners(places, rots, size)
-
-    p.append((0, 0, 0))
-    p.append((0, 0, -1))
-    print(pc.shape)
-    # publish_pc2(pc, obj)
-    a = center2sphere(places, size, resolution=0.25)
-    print(places)
-    print(a)
-    print(sphere2center(a, resolution=0.25))
-    bbox = sphere2center(a, resolution=0.25)
-    print(corners.shape)
-    # publish_pc2(pc, bbox.reshape(-1, 3))
-    publish_pc2(pc, corners.reshape(-1, 3))
-
-
-if __name__ == "__main__":
-    pcd_path = "points/*.pcd"
-    label_path = "labels/*.pickle"
-    process(pcd_path, label_path)

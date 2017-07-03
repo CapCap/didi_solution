@@ -83,17 +83,6 @@ def conv3D_to_output(input_layer, input_dim, output_dim, size, stride, padding="
         return tf.nn.conv3d(input_layer, kernel, stride, padding=padding)
 
 
-def deconv3D_to_output(input_layer, input_dim, output_dim, size, stride, output_shape, padding="SAME", name=""):
-    height, width, length = size
-    with tf.variable_scope("deconv3D" + name):  # , reuse=True):
-        kernel = tf.get_variable("weights",
-                                 shape=[length, height, width, output_dim, input_dim],
-                                 dtype=tf.float32,
-                                 initializer=tf.constant_initializer(0.01))
-
-        return tf.nn.conv3d_transpose(input_layer, kernel, output_shape, stride, padding=padding)
-
-
 def fully_connected(input_layer, shape, name="", is_training=True):
     with tf.variable_scope("fully" + name):  # , reuse=True):
         kernel = tf.get_variable("weights",
