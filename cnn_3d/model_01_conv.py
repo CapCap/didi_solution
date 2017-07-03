@@ -34,6 +34,9 @@ class CNNModel(object):
         self.graph_built = False
 
     def predict(self, points, min_certainty=0.99):
+        if not self.graph_built:
+            self.build_graph()
+
         voxel = input_helpers.pc2voxel(points,
                                        resolution=self.resolution,
                                        x=self.x,
@@ -199,9 +202,9 @@ def test(model_path, points_path, resolution=0.2, scale=4, voxel_shape=(800, 800
     y = np.array(y)
     z = np.array(z)
 
-    pc = load_pc_from_pcd(points_path)
+    pc = input_helpers.load_pc_from_pcd(points_path)
 
-    voxel = pc2voxel(pc,
+    voxel = input_helpers.pc2voxel(pc,
                      resolution=resolution,
                      x=x,
                      y=y,
@@ -239,7 +242,7 @@ def test(model_path, points_path, resolution=0.2, scale=4, voxel_shape=(800, 800
         print("centers: ", centers)
         print("centers.shape: ", centers.shape)
 
-        centers = sphere2center(centers,
+        centers = input_helpers.sphere2center(centers,
                                 resolution=resolution,
                                 scale=scale,
                                 min_value=np.array([x[0], y[0], z[0]]))
