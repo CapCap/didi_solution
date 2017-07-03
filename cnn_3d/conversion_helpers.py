@@ -85,12 +85,12 @@ def get_first_tracklet_for(timestamp, tracklets, camera_timestamps):
     return frame_id, tracklets[frame_id]
 
 
-def save_pointclouds_with_frame_ids(input_folder_path):
-    point_file = os.path.join(input_folder_path, "points.csv")
+def save_pointclouds_with_frame_ids(input_folder_path, points_csv_filename="points.csv", camera_csv_filename="cap_camera.csv"):
+    point_file = os.path.join(input_folder_path, points_csv_filename)
     points_out_folder = os.path.join(input_folder_path, "points")
     mkdir_p(points_out_folder)
 
-    camera_timestamps = load_camera_timestamps(input_folder_path)
+    camera_timestamps = load_camera_timestamps(input_folder_path, csv_filename=camera_csv_filename)
     points_df, df_timestamps = load_points(point_file)
 
     print("Loaded %s camera timestamps" % (len(camera_timestamps)))
@@ -114,7 +114,7 @@ def save_pointclouds_with_frame_ids(input_folder_path):
 # complete_folders = ['suburu03', 'nissan05', 'suburu12', 'suburu07', 'nissan02', 'nissan03', 'suburu06', 'nissan07', 'suburu10', 'cmax01', 'nissan01', 'nissan06', 'suburu09', 'suburu11', 'suburu05', 'bmw01', 'suburu01', 'nissan04', 'suburu02', 'suburu04']
 
 def process_pointcloud_timestamps_for_all_folders(folders_glob="/home/paperspace/Desktop/converted/car/training/*/*",
-                                                  complete_folders=None):
+                                                  complete_folders=None, points_csv_filename="points.csv", camera_csv_filename="cap_camera.csv"):
     if complete_folders is None:
         complete_folders = []
 
@@ -132,7 +132,7 @@ def process_pointcloud_timestamps_for_all_folders(folders_glob="/home/paperspace
             print("Skipping '%s'" % data_input_folder)
         else:
             print("Processing '%s'" % data_input_folder)
-            save_pointclouds_with_frame_ids(data_input_folder)
+            save_pointclouds_with_frame_ids(data_input_folder, points_csv_filename=points_csv_filename, camera_csv_filename=camera_csv_filename)
 
         print("     ")
 
