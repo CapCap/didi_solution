@@ -16,10 +16,10 @@ import layers
 class CNNModel(object):
     def __init__(self, voxel_shape=(800, 800, 80), activation=tf.nn.relu, is_training=True,
                  resolution=0.1, scale=8, x=(-40, 40), y=(-40, 40), z=(-4, 4),
-                 model_path=None):
+                 model_path=None, publisher=None):
 
         self.sess = tf.Session()
-        self.graph = tf.get_default_graph()
+        self.graph = None
 
         self.x = np.array(x)
         self.y = np.array(y)
@@ -32,6 +32,7 @@ class CNNModel(object):
         self.model_path = model_path
 
         self.graph_built = False
+        
 
     def predict(self, points, min_certainty=0.99):
         if not self.graph_built:
@@ -45,9 +46,9 @@ class CNNModel(object):
 
         voxel = voxel.reshape(1, voxel.shape[0], voxel.shape[1], voxel.shape[2], 1)
 
-        # objectness = sess.run(model.objectness, feed_dict={voxel: voxel_x}[0, :, :, :, 0]
-        coordinates = self.sess.run(self.coordinate, feed_dict={voxel: voxel})[0]
-        y_pred = self.sess.run(self.y_pred, feed_dict={voxel: voxel})[0, :, :, :, 0]
+        # objectness = sess.run(model.objectness, feed_dict={self.input_voxel: voxel}[0, :, :, :, 0]
+        coordinates = self.sess.run(self.coordinate, feed_dict={self.input_voxel: voxel})[0]
+        y_pred = self.sess.run(self.y_pred, feed_dict={self.input_voxel: voxel})[0, :, :, :, 0]
 
         index = np.where(y_pred >= min_certainty)
         index = np.array(index)
@@ -60,8 +61,12 @@ class CNNModel(object):
 
         corners = coordinates[index[0], index[1], index[2]].reshape(-1, 8, 3)
         corners = np.array([corners[t, :, :] + centers[t, :] for t in range(corners.shape[0])])
+        
+        confidence = y_pred[index[0], index[1], index[2]]
+        
+        rotations = np.array([input_helpers.get_orientation(corner) for corner in corners])
 
-        return corners, centers, coordinates, y_pred
+        return corners, centers, rotations, confidence
 
     def build_graph(self):
         if self.graph_built:
@@ -73,57 +78,58 @@ class CNNModel(object):
         if self.is_training:
             self.phase_train = tf.placeholder(tf.bool, name='phase_train')
 
-        self.layer1 = layers.conv3DLayer(self.input_voxel,
-                                         input_dim=1,
-                                         output_dim=16,
-                                         size=(5, 5, 5),
-                                         stride=[1, 2, 2, 2, 1],
-                                         name="layer1",
-                                         activation=self.activation,
-                                         is_training=self.is_training)
+        with tf.variable_scope("3DCNN") as scope:
+            self.layer1 = layers.conv3DLayer(self.input_voxel,
+                                             input_dim=1,
+                                             output_dim=16,
+                                             size=(5, 5, 5),
+                                             stride=[1, 2, 2, 2, 1],
+                                             name="layer1",
+                                             activation=self.activation,
+                                             is_training=self.is_training)
 
-        self.layer2 = layers.conv3DLayer(self.layer1,
-                                         input_dim=16,
-                                         output_dim=32,
-                                         size=(5, 5, 5),
-                                         stride=[1, 2, 2, 2, 1],
-                                         name="layer2",
-                                         activation=self.activation,
-                                         is_training=self.is_training)
+            self.layer2 = layers.conv3DLayer(self.layer1,
+                                             input_dim=16,
+                                             output_dim=32,
+                                             size=(5, 5, 5),
+                                             stride=[1, 2, 2, 2, 1],
+                                             name="layer2",
+                                             activation=self.activation,
+                                             is_training=self.is_training)
 
-        self.layer3 = layers.conv3DLayer(self.layer2,
-                                         input_dim=32,
-                                         output_dim=64,
-                                         size=(3, 3, 3),
-                                         stride=[1, 2, 2, 2, 1],
-                                         name="layer3",
-                                         activation=self.activation,
-                                         is_training=self.is_training)
+            self.layer3 = layers.conv3DLayer(self.layer2,
+                                             input_dim=32,
+                                             output_dim=64,
+                                             size=(3, 3, 3),
+                                             stride=[1, 2, 2, 2, 1],
+                                             name="layer3",
+                                             activation=self.activation,
+                                             is_training=self.is_training)
 
-        self.layer4 = layers.conv3DLayer(self.layer3,
-                                         input_dim=64,
-                                         output_dim=64,
-                                         size=(3, 3, 3),
-                                         stride=[1, 1, 1, 1, 1],
-                                         name="layer4",
-                                         activation=self.activation,
-                                         is_training=self.is_training)
+            self.layer4 = layers.conv3DLayer(self.layer3,
+                                             input_dim=64,
+                                             output_dim=64,
+                                             size=(3, 3, 3),
+                                             stride=[1, 1, 1, 1, 1],
+                                             name="layer4",
+                                             activation=self.activation,
+                                             is_training=self.is_training)
 
-        self.objectness = layers.conv3D_to_output(self.layer4,
-                                                  input_dim=64,
-                                                  output_dim=2,
-                                                  size=(3, 3, 3),
-                                                  stride=[1, 1, 1, 1, 1],
-                                                  name="objectness")
+            self.objectness = layers.conv3D_to_output(self.layer4,
+                                                      input_dim=64,
+                                                      output_dim=2,
+                                                      size=(3, 3, 3),
+                                                      stride=[1, 1, 1, 1, 1],
+                                                      name="objectness")
 
-        self.coordinate = layers.conv3D_to_output(self.layer4,
-                                                  input_dim=64,
-                                                  output_dim=24,
-                                                  size=(3, 3, 3),
-                                                  stride=[1, 1, 1, 1, 1],
-                                                  name="coordinate")
+            self.coordinate = layers.conv3D_to_output(self.layer4,
+                                                      input_dim=64,
+                                                      output_dim=24,
+                                                      size=(3, 3, 3),
+                                                      stride=[1, 1, 1, 1, 1],
+                                                      name="coordinate")
 
-        self.y_pred = tf.nn.softmax(self.objectness, dim=-1)
+            self.y_pred = tf.nn.softmax(self.objectness, dim=-1)
 
         if self.is_training:
             initialized_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope="3DCNN")
@@ -132,7 +138,8 @@ class CNNModel(object):
         if self.model_path is not None:
             saver = tf.train.Saver()
             saver.restore(self.sess, self.model_path)
-            # self.graph = tf.get_default_graph()
+
+        self.graph = tf.get_default_graph()
 
         self.graph_built = True
 
